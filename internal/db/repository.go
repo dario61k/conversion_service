@@ -26,7 +26,7 @@ func (r *Repository) PublicationManifestAndQuality(ctx context.Context, id, qual
 	err = r.db.QueryRowContext(ctx,
 		`SELECT url_manifiesto, descarga
          FROM app_publicacion
-         WHERE contenido_id = $1`,
+         WHERE id = $1`,
 		id).Scan(&manifest, &qualityDataDb)
 	if err != nil {
 		return "", err
@@ -63,4 +63,50 @@ func (r *Repository) PublicationManifestAndQuality(ctx context.Context, id, qual
 func (r *Repository) PublicationManifest(ctx context.Context, id string) (manifest string, err error) {
 	err = r.db.QueryRowContext(ctx, `SELECT url_manifiesto FROM app_publicacion WHERE id=$1`, id).Scan(&manifest)
 	return
+}
+
+type ExpiredAsset struct {
+	PublicacionID int64
+	Calidad       string
+	Manifiesto    string
+}
+
+func (r *Repository) GetExpiredAssets(ctx context.Context, minutes int) ([]ExpiredAsset, error) {
+	query := `
+		SELECT 
+			p.id,
+			l.calidad,
+			p.url_manifiesto
+		FROM app_publicacion_lru l
+		JOIN app_publicacion p ON p.id = l.publicacion_id
+		WHERE l.lru < NOW() - ($1 * INTERVAL '1 minute');
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, minutes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []ExpiredAsset
+	for rows.Next() {
+		var e ExpiredAsset
+		if err := rows.Scan(&e.PublicacionID, &e.Calidad, &e.Manifiesto); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+func (r *Repository) UpdateLRU(ctx context.Context, id string, quality string) error {
+	query := `
+		INSERT INTO app_publicacion_lru (publicacion_id, calidad, lru)
+		VALUES ($1, $2, NOW())
+		ON CONFLICT (publicacion_id, calidad)
+		DO UPDATE SET lru = EXCLUDED.lru;
+	`
+
+	_, err := r.db.ExecContext(ctx, query, id, quality)
+	return err
 }

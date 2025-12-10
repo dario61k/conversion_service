@@ -16,11 +16,13 @@ import (
 	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
+	"github.com/dario61k/conversion-service/internal/cleanup"
+	"github.com/dario61k/conversion-service/internal/config"
 	"github.com/dario61k/conversion-service/internal/db"
 	"github.com/dario61k/conversion-service/internal/handlers"
+	"github.com/dario61k/conversion-service/internal/services/crons"
 	"github.com/dario61k/conversion-service/internal/services/downloader"
 	"github.com/dario61k/conversion-service/internal/storage"
-	"github.com/dario61k/conversion-service/internal/config"
 )
 
 func main() {
@@ -43,7 +45,10 @@ func main() {
 	// Dependencias de dominio
 	repo := db.New(dbPool)
 	dl := downloader.New(cfg, repo, store)
+	cr := crons.New(repo, store) 
 	h := handlers.New(dl)
+
+	cleanup.Start(cr)
 
 	// Router HTTP
 	gin.SetMode(gin.ReleaseMode) // Prod Mode

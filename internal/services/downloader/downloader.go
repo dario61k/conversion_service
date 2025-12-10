@@ -46,7 +46,14 @@ func (d *Downloader) VideoURL(ctx context.Context, id, quality string) (string, 
 	if err := d.build(ctx, manifest, quality, objectName); err != nil {
 		return "", err
 	}
+
+
+	if err := d.repo.UpdateLRU(ctx, id, quality); err != nil {
+		return "", err
+	}
+
 	return d.storage.Presign(ctx, d.cfg.DownloadsBucket, objectName, 48*time.Hour)
+
 }
 
 // SubtitleURL devuelve la URL de descarga (48 h) de los subtítulos.
