@@ -1,0 +1,8 @@
+	
+
+@baseUrl = http://localhost:8080
+
+###
+
+GET {{baseUrl}}/download/2/low
+Content-Type: application/json
