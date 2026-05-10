@@ -11,7 +11,7 @@ type Repository struct {
 	db *sql.DB
 }
 
-func New(db *sql.DB) *Repository { return &Repository{db: db} }
+func NewRepository(db *sql.DB) *Repository { return &Repository{db: db} }
 
 type pubQuality struct {
 	Low    string `json:"low"`

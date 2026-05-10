@@ -4,15 +4,15 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/dario61k/conversion-service/internal/services/downloader"
+	"github.com/dario61k/conversion-service/internal/services"
 	"github.com/gin-gonic/gin"
 )
 
 type Handler struct {
-	dl *downloader.Downloader
+	dl *services.Downloader
 }
 
-func New(dl *downloader.Downloader) *Handler { return &Handler{dl: dl} }
+func NewHandler(dl *services.Downloader) *Handler { return &Handler{dl: dl} }
 
 func (h *Handler) GetVideo(c *gin.Context) {
 	id := c.Param("id")
@@ -21,7 +21,7 @@ func (h *Handler) GetVideo(c *gin.Context) {
 	url, err := h.dl.VideoURL(c.Request.Context(), id, q)
 	if err != nil {
 		status := http.StatusInternalServerError
-		if errors.Is(err, downloader.ErrNotFound) {
+		if errors.Is(err, services.ErrNotFound) {
 			status = http.StatusNotFound
 		}
 		c.JSON(status, gin.H{"error": err.Error()})
@@ -37,7 +37,7 @@ func (h *Handler) GetSubtitle(c *gin.Context) {
 	url, err := h.dl.SubtitleURL(c.Request.Context(), id, lang)
 	if err != nil {
 		status := http.StatusInternalServerError
-		if err == downloader.ErrNotFound {
+		if err == services.ErrNotFound {
 			status = http.StatusNotFound
 		}
 		c.JSON(status, gin.H{"error": err.Error()})

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"io"
 	"log"
 	"net/http"
@@ -16,25 +15,17 @@ import (
 	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/dario61k/conversion-service/internal/cleanup"
 	"github.com/dario61k/conversion-service/internal/config"
+	"github.com/dario61k/conversion-service/internal/cron"
 	"github.com/dario61k/conversion-service/internal/db"
+	"github.com/dario61k/conversion-service/internal/domain"
 	"github.com/dario61k/conversion-service/internal/handlers"
-	"github.com/dario61k/conversion-service/internal/services/crons"
-	"github.com/dario61k/conversion-service/internal/services/downloader"
+	"github.com/dario61k/conversion-service/internal/services"
 	"github.com/dario61k/conversion-service/internal/storage"
 )
 
 func main() {
 	cfg := config.Load()
-
-	// Base de datos
-	dbPool, err := sql.Open("pgx", cfg.PGDSN)
-	if err != nil {
-		log.Fatalf("db open: %v", err)
-	}
-	dbPool.SetConnMaxIdleTime(5 * time.Minute)
-	dbPool.SetMaxOpenConns(10)
 
 	// Almacenamiento S3 compatible
 	store, err := storage.New(cfg.MinioEndpoint, cfg.MinioAccessKey, cfg.MinioSecretKey, cfg.MinioUseSSL)
@@ -43,16 +34,25 @@ func main() {
 	}
 
 	// Dependencias de dominio
-	repo := db.New(dbPool)
-	dl := downloader.New(cfg, repo, store)
-	cr := crons.New(repo, store) 
-	h := handlers.New(dl)
+	dbPool := db.NewDBPool(cfg.PGDSN, 5, 10)
+	repository := db.NewRepository(dbPool)
+	downloaderService := services.NewDowloaderService(cfg, repository, store)
+	handler := handlers.NewHandler(downloaderService)
 
-	cleanup.Start(cr)
+	cp := domain.CronParams{
+		Repo : repository,
+		Store : store,
+		Cfg: &cfg,
+	}
+
+	cron := cron.Start(&cp)
+	defer cron.Stop()
 
 	// Router HTTP
 	gin.SetMode(gin.ReleaseMode) // Prod Mode
-	//gin.SetMode(gin.DebugMode) // Prod Mode
+	if cfg.Debug {
+		gin.SetMode(gin.DebugMode) // Dev Mode
+	}
 
 	// Logging
 	gin.DefaultWriter = io.MultiWriter(helpers.BuildLogs())
@@ -65,13 +65,9 @@ func main() {
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 
-	r.GET("/download/:id/:quality", h.GetVideo)
-	r.GET("/download/:id/subtitle/:lang", h.GetSubtitle)
-	r.GET("/buckets", h.GetBucketList)
-
-	// Tarea de limpieza
-	//cron := cleanup.Start(cfg, store)
-	//defer cron.Stop()
+	r.GET("/download/:id/:quality", handler.GetVideo)
+	r.GET("/download/:id/subtitle/:lang", handler.GetSubtitle)
+	r.GET("/buckets", handler.GetBucketList)
 
 	srv := &http.Server{
 		Addr:    ":8080",

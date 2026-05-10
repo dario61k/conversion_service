@@ -1,4 +1,4 @@
-package downloader
+package services
 
 import (
 	"context"
@@ -21,7 +21,7 @@ type Downloader struct {
 	storage *storage.S3
 }
 
-func New(cfg config.Config, repo *db.Repository, s3 *storage.S3) *Downloader {
+func NewDowloaderService(cfg config.Config, repo *db.Repository, s3 *storage.S3) *Downloader {
 	return &Downloader{cfg: cfg, repo: repo, storage: s3}
 }
 

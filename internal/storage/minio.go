@@ -18,7 +18,7 @@ type S3 struct {
 func New(endpoint, ak, sk string, ssl bool) (*S3, error) {
 	mc, err := minio.New(endpoint, &minio.Options{
 		Creds:        credentials.NewStaticV4(ak, sk, ""),
-		Secure:       false,
+		Secure:       ssl,
 		Region:       "us-east-1",            // p.ej. "us-east-1"
 		BucketLookup: minio.BucketLookupAuto, //  ←  fuerza path-style
 		Transport: &http.Transport{

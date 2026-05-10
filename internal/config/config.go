@@ -1,9 +1,11 @@
 package config
 
 import (
-	"github.com/joho/godotenv"
 	"log"
 	"os"
+	"strconv"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -17,6 +19,8 @@ type Config struct {
 	VideosBucket    string
 	SubsBucket      string
 	FFmpegPath      string
+	Debug           bool
+	TTL             int
 }
 
 func Load() Config {
@@ -24,6 +28,13 @@ func Load() Config {
 	if err != nil {
 		log.Fatalf("Error loading .env file")
 	}
+
+	ttl := getenv("TTL", "4320")
+	ttlInt, err := strconv.Atoi(ttl)
+	if err != nil {
+		log.Fatal("Invalid TTL value")
+	}
+
 	return Config{
 		HTTPPort:        getenv("HTTP_PORT", "8080"),
 		PGDSN:           mustenv("PG_DSN"),
@@ -35,6 +46,8 @@ func Load() Config {
 		VideosBucket:    mustenv("VIDEOS_BUCKET"),
 		SubsBucket:      getenv("SUBS_BUCKET", "subtitulos"),
 		FFmpegPath:      mustenv("FFMPEG_PATH"),
+		Debug:           mustenv("DEBUG") == "true",
+		TTL:             ttlInt,
 	}
 }
 
