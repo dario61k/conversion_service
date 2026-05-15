@@ -5,6 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/dario61k/conversion-service/internal/domain"
 )
 
 type Repository struct {
@@ -65,15 +69,9 @@ func (r *Repository) PublicationManifest(ctx context.Context, id string) (manife
 	return
 }
 
-type ExpiredAsset struct {
-	PublicacionID int64
-	Calidad       string
-	Manifiesto    string
-}
-
-func (r *Repository) GetExpiredAssets(ctx context.Context, minutes int) ([]ExpiredAsset, error) {
+func (r *Repository) GetExpiredAssets(ctx context.Context, minutes int) ([]domain.ExpiredAsset, error) {
 	query := `
-		SELECT 
+		SELECT
 			p.id,
 			l.calidad,
 			p.url_manifiesto
@@ -88,15 +86,52 @@ func (r *Repository) GetExpiredAssets(ctx context.Context, minutes int) ([]Expir
 	}
 	defer rows.Close()
 
-	var out []ExpiredAsset
+	var out []domain.ExpiredAsset
 	for rows.Next() {
-		var e ExpiredAsset
+		var e domain.ExpiredAsset
 		if err := rows.Scan(&e.PublicacionID, &e.Calidad, &e.Manifiesto); err != nil {
 			return nil, err
 		}
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+func (r *Repository) DeleteLRUs(ctx context.Context, ea []domain.ExpiredAsset) error {
+
+	if len(ea) == 0 {
+		return nil
+	}
+
+	args := make([]any, 0, len(ea)*2)
+	values := make([]string, 0, len(ea))
+
+	for i, e := range ea {
+		p1 := i*2 + 1
+		p2 := i*2 + 2
+
+		values = append(values,
+			fmt.Sprintf("($%d::bigint, $%d::text)", p1, p2),
+		)
+
+		args = append(args,
+			e.PublicacionID,
+			e.Calidad,
+		)
+	}
+
+	query := fmt.Sprintf(`
+		DELETE FROM app_publicacion_lru l
+		USING (
+			VALUES %s
+		) AS v(publicacion_id, calidad)
+		WHERE
+			l.publicacion_id = v.publicacion_id
+			AND l.calidad = v.calidad
+	`, strings.Join(values, ","))
+
+	_, err := r.db.ExecContext(ctx, query, args...)
+	return err
 }
 
 func (r *Repository) UpdateLRU(ctx context.Context, id string, quality string) error {

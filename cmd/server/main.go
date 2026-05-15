@@ -17,9 +17,10 @@ import (
 
 	"github.com/dario61k/conversion-service/internal/config"
 	"github.com/dario61k/conversion-service/internal/cron"
+	"github.com/dario61k/conversion-service/internal/cron/jobs"
 	"github.com/dario61k/conversion-service/internal/db"
-	"github.com/dario61k/conversion-service/internal/domain"
 	"github.com/dario61k/conversion-service/internal/handlers"
+	"github.com/dario61k/conversion-service/internal/middlewares"
 	"github.com/dario61k/conversion-service/internal/services"
 	"github.com/dario61k/conversion-service/internal/storage"
 )
@@ -39,7 +40,7 @@ func main() {
 	downloaderService := services.NewDowloaderService(cfg, repository, store)
 	handler := handlers.NewHandler(downloaderService)
 
-	cp := domain.CronParams{
+	cp := jobs.CronParams{
 		Repo : repository,
 		Store : store,
 		Cfg: &cfg,
@@ -65,7 +66,7 @@ func main() {
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 
-	r.GET("/download/:id/:quality", handler.GetVideo)
+	r.GET("/download/:id/:quality", middlewares.VerifyAccess(cfg.AuthEndpoint), handler.GetVideo)
 	r.GET("/download/:id/subtitle/:lang", handler.GetSubtitle)
 	r.GET("/buckets", handler.GetBucketList)
 

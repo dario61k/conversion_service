@@ -21,6 +21,7 @@ type Config struct {
 	FFmpegPath      string
 	Debug           bool
 	TTL             int
+	AuthEndpoint    string
 }
 
 func Load() Config {
@@ -48,6 +49,7 @@ func Load() Config {
 		FFmpegPath:      mustenv("FFMPEG_PATH"),
 		Debug:           mustenv("DEBUG") == "true",
 		TTL:             ttlInt,
+		AuthEndpoint:    mustenv("AUTH_ENDPOINT"),
 	}
 }
 

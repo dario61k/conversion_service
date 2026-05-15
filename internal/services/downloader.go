@@ -39,6 +39,9 @@ func (d *Downloader) VideoURL(ctx context.Context, id, quality string) (string, 
 
 	// 1) Ya existe ensamblado → presign
 	if d.storage.Exists(ctx, d.cfg.DownloadsBucket, objectName) {
+		if err := d.repo.UpdateLRU(ctx, id, quality); err != nil {
+			return "", err
+		}
 		return d.storage.Presign(ctx, d.cfg.DownloadsBucket, objectName, 48*time.Hour)
 	}
 
@@ -46,7 +49,6 @@ func (d *Downloader) VideoURL(ctx context.Context, id, quality string) (string, 
 	if err := d.build(ctx, manifest, quality, objectName); err != nil {
 		return "", err
 	}
-
 
 	if err := d.repo.UpdateLRU(ctx, id, quality); err != nil {
 		return "", err
