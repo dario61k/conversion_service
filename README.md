@@ -13,6 +13,7 @@ Además, el workspace incluye un servicio auxiliar de simulación de carga:
 
 - [`aux_service/main.go`](aux_service/main.go) simula usuarios concurrentes y un servidor fake de autenticación.
 - [`watch_minio.sh`](watch_minio.sh) monitorea el uso del bucket de descargas.
+- [`prepare_video.sh`](prepare_video.sh) genera versiones low(144p), medium(360p), high(720p), pro(1080p) de un archivo de video.
 
 ---
 
@@ -21,7 +22,6 @@ Además, el workspace incluye un servicio auxiliar de simulación de carga:
 - `conversion_service/`  
   Servicio principal.
   - `cmd/server/` servidor HTTP.
-  - `cmd/worker/` proceso de workers.
   - `internal/` lógica interna: configuración, base de datos, cron, handlers, middlewares, queue, storage y servicios.
   - `.env` configuración local.
   - `template.env` plantilla de variables de entorno.
