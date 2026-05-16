@@ -10,19 +10,17 @@ import (
 	"github.com/dario61k/conversion-service/internal/storage"
 )
 
-
 type CronParams struct {
 	Repo  *db.Repository
 	Store *storage.S3
-	Cfg *config.Config
+	Cfg   *config.Config
 }
-
 
 func CleanUp(c *CronParams) {
 	ctx := context.Background()
 
 	log.Println("Init Cleanup Cron....")
-	
+
 	expired, err := c.Repo.GetExpiredAssets(ctx, c.Cfg.TTL)
 	if err != nil {
 		log.Printf("[CRON] Error obteniendo expirados: %v", err)
@@ -33,13 +31,13 @@ func CleanUp(c *CronParams) {
 		log.Println("Finish Cleanup Cron...no expired assets")
 		return
 	}
-	
+
 	ea := make([]domain.ExpiredAsset, 0, len(expired))
-	
+
 	for _, e := range expired {
 		object := e.Manifiesto + "/" + e.Calidad + ".mp4"
 
-		err := c.Store.Remove(ctx, "descargas", object)
+		err := c.Store.Remove(ctx, c.Cfg.DownloadsBucket, object)
 		if err != nil {
 			log.Printf("[CRON] Error borrando %s: %v", object, err)
 		} else {
@@ -52,5 +50,9 @@ func CleanUp(c *CronParams) {
 	if err != nil {
 		log.Printf("[CRON] Error borrando lru de base de datos: %v", err)
 	}
-	
+
+	if err := c.Repo.ExpireJobs(ctx, ea); err != nil {
+		log.Printf("[CRON] Error expirando jobs: %v", err)
+	}
+
 }

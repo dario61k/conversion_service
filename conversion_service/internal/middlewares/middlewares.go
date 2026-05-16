@@ -32,7 +32,10 @@ func VerifyAccess(authURL string) gin.HandlerFunc {
 			"id":      c.Param("id"),
 			"quality": c.Param("quality"),
 		}
-		
+		if lang := c.Param("lang"); lang != "" {
+			payload["lang"] = lang
+		}
+
 		body, err := json.Marshal(payload)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
@@ -57,7 +60,8 @@ func VerifyAccess(authURL string) gin.HandlerFunc {
 		req.Header.Set("Authorization", token)
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := http.DefaultClient.Do(req)
+		client := &http.Client{Timeout: 5 * time.Second}
+		resp, err := client.Do(req)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusBadGateway, gin.H{
 				"error": "auth service unavailable",
@@ -67,7 +71,7 @@ func VerifyAccess(authURL string) gin.HandlerFunc {
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "access denied",
 			})
 			return

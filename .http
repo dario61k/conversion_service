@@ -1,8 +1,13 @@
-	
-
 @baseUrl = http://localhost:8080
 
 ###
 
 GET {{baseUrl}}/download/2/low
 Content-Type: application/json
+Authorization: "http-user"
+
+###
+
+GET {{baseUrl}}/jobs/17
+Content-Type: application/json
+Authorization: "http-user"

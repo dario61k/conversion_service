@@ -21,8 +21,10 @@ import (
 	"github.com/dario61k/conversion-service/internal/db"
 	"github.com/dario61k/conversion-service/internal/handlers"
 	"github.com/dario61k/conversion-service/internal/middlewares"
+	"github.com/dario61k/conversion-service/internal/queue"
 	"github.com/dario61k/conversion-service/internal/services"
 	"github.com/dario61k/conversion-service/internal/storage"
+	"github.com/dario61k/conversion-service/internal/worker"
 )
 
 func main() {
@@ -37,17 +39,32 @@ func main() {
 	// Dependencias de dominio
 	dbPool := db.NewDBPool(cfg.PGDSN, 5, 10)
 	repository := db.NewRepository(dbPool)
-	downloaderService := services.NewDowloaderService(cfg, repository, store)
-	handler := handlers.NewHandler(downloaderService)
+
+	queueClient, err := queue.NewClient(cfg)
+	if err != nil {
+		log.Fatalf("rabbitmq: %v", err)
+	}
+	defer queueClient.Close()
+
+	downloaderService := services.NewDowloaderService(cfg, repository, store, queueClient)
+	handler := handlers.NewHandler(downloaderService, cfg)
 
 	cp := jobs.CronParams{
-		Repo : repository,
-		Store : store,
-		Cfg: &cfg,
+		Repo:  repository,
+		Store: store,
+		Cfg:   &cfg,
 	}
 
 	cron := cron.Start(&cp)
 	defer cron.Stop()
+
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+	workerRunner := worker.Start(workerCtx, cfg, repository, store, downloaderService, queueClient)
+	go func() {
+		for err := range workerRunner.Errors() {
+			log.Printf("worker error: %v", err)
+		}
+	}()
 
 	// Router HTTP
 	gin.SetMode(gin.ReleaseMode) // Prod Mode
@@ -67,11 +84,12 @@ func main() {
 	r.Use(gin.Recovery())
 
 	r.GET("/download/:id/:quality", middlewares.VerifyAccess(cfg.AuthEndpoint), handler.GetVideo)
-	r.GET("/download/:id/subtitle/:lang", handler.GetSubtitle)
+	r.GET("/download/:id/subtitle/:lang", middlewares.VerifyAccess(cfg.AuthEndpoint), handler.GetSubtitle)
+	r.GET("/jobs/:job_id", handler.GetJob)
 	r.GET("/buckets", handler.GetBucketList)
 
 	srv := &http.Server{
-		Addr:    ":8080",
+		Addr:    ":" + cfg.HTTPPort,
 		Handler: r.Handler(),
 	}
 
@@ -89,6 +107,9 @@ func main() {
 	signal.Notify(quitSignal, syscall.SIGINT, syscall.SIGTERM)
 	<-quitSignal
 	log.Println("🛑  servidor detenido")
+
+	workerCancel()
+	workerRunner.Wait()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
